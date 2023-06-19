@@ -1,0 +1,59 @@
+---
+- name: Install LAMP stack
+  hosts: all
+  become: true
+  tasks:
+    - name: Update yum cache
+      yum:
+        name: '*'
+        state: latest
+    - name: Install Apache web server
+      yum:
+        name: httpd
+        state: present
+    - name: Start and enable Apache service
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+    - name: Install MySQL/MariaDB server and client
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - mariadb-server
+        - mariadb
+    - name: Start and enable MySQL/MariaDB service
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+    - name: Secure MySQL/MariaDB installation
+      command: mysql_secure_installation
+      args:
+        creates: /root/.my.cnf
+      become_user: root
+      become_method: sudo
+      environment:
+        MYSQL_PWD: ""
+    - name: Install PHP and required modules
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - php
+        - php-mysql
+        - php-gd
+        - php-xml
+    - name: Set up a sample PHP page
+      copy:
+        content: |
+          <?php phpinfo(); ?>
+        dest: /var/www/html/index.php
+    - name: Ensure the sample PHP page is accessible
+      uri:
+        url: http://localhost/index.php
+      register: php_page_response
+      until: php_page_response.status == 200
+      retries: 10
+      delay: 5
